@@ -3,7 +3,7 @@ import struct
 import sys
 
 message = 'very important data'
-multicast_group = ('192.168.0.10', 10000)
+multicast_group = ('192.168.0.1', 10000)
 
 # Create the datagram socket
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
