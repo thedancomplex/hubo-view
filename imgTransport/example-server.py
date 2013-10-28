@@ -25,16 +25,16 @@ while True:
 
     # Get Frame
 #    frame = cv.QueryFrame(capture)
-    f, img = capture.read()
-    gray_image = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+##    f, img = capture.read()
+##    gray_image = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 #    cv.ShowImage("w1", gray_image)
-    cv2.imshow("w1", gray_image)
-    cv2.waitKey(10)
+##    cv2.imshow("w1", gray_image)
+##    socket.send(gray_image)
+##    cv2.waitKey(10)
 #    c = cv.WaitKey(10)
 #    if (cv2.waitKey (5) != -1):
 #        break;
 
-#    socket.send(frame)
 
 
-#    socket.send("%d %d %d" % (zipcode, temperature, relhumidity))
+    socket.send("%d %d %d" % (zipcode, temperature, relhumidity))
