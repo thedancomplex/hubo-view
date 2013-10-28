@@ -1,4 +1,5 @@
 import socket
+import sys
 import struct
 import cv2.cv as cv
 import cv2
@@ -19,6 +20,12 @@ sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
 
 while True:
     tmp = sock.recv(10240)
-#    cv2.imshow("w2", tmp)
+#    cv2.imshow("w2", eval(tmp))
 #    cv2.waitKey(10)
-    print tmp
+### np.genfromtxt
+### http://stackoverflow.com/questions/7497328/reading-ascii-file-in-python-numpy-array
+
+###http://stackoverflow.com/questions/14584566/transferring-image-files-from-sever-to-client-using-python-socket-programming
+
+### http://stackoverflow.com/questions/18817650/python-simplecv-tostring-back-to-image
+    print sys.getsizeof(tmp)
