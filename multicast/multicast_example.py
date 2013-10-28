@@ -47,7 +47,8 @@ def get_local_ip():
         temp_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         try:
             # Open a connection to one of Google's DNS servers. Preferably change this to a server in your control.
-            temp_socket.connect(('8.8.8.8', 9))
+##            temp_socket.connect(('8.8.8.8', 9))
+            temp_socket.connect(('192.168.0.1', 9))
             # Get the interface used by the socket.
             local_ip = temp_socket.getsockname()[0]
         except socket.error:
