@@ -153,7 +153,7 @@ if __name__ == '__main__':
     # Remember, you subscribe to a multicast IP, not a port. All data from all ports
     # sent to that multicast IP will be echoed to any subscribed machine.
     multicast_address = "238.255.2.3"
-    multicast_port = 1234
+    multicast_port = 11001
 
     # When launching this example, you can choose to put it in listen or announce mode.
     # Announcing doesn't require binding to a port, but we do it here just to reuse code.
