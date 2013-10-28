@@ -89,10 +89,11 @@ def create_socket(multicast_ip, port):
     # If you try to bind to all interfaces on Windows, no multicast data will arrive.
     # Hence the following.
     if sys.platform.startswith("darwin"):
-        my_socket.bind(('0.0.0.0', port))
+        my_socket.bind(('192.168.0.10', port))
     else:
         my_socket.bind((local_ip, port))
 
+    print local_ip
     return my_socket
 
 def get_bound_multicast_interface(my_socket):
@@ -150,7 +151,7 @@ if __name__ == '__main__':
     # 239.255.0.0 - 239.255.255.255 are for local network multicast use.
     # Remember, you subscribe to a multicast IP, not a port. All data from all ports
     # sent to that multicast IP will be echoed to any subscribed machine.
-    multicast_address = "239.255.255.255"
+    multicast_address = "238.255.2.3"
     multicast_port = 1234
 
     # When launching this example, you can choose to put it in listen or announce mode.
