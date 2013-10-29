@@ -3,6 +3,7 @@ import sys
 import struct
 import cv2.cv as cv
 import cv2
+import numpy as np
 
 # Open viewing window
 cv.NamedWindow("w2", cv.CV_WINDOW_AUTOSIZE)
@@ -19,9 +20,13 @@ mreq = struct.pack("4sl", socket.inet_aton(MCAST_GRP), socket.INADDR_ANY)
 sock.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
 
 while True:
-    tmp = sock.recv(10240)
-#    cv2.imshow("w2", eval(tmp))
-#    cv2.waitKey(10)
+    tmp = sock.recv(22000)
+#    tmp = np.array(tmp)
+    print sys.getsizeof(tmp)
+    tmp = np.fromstring(tmp, np.uint8)
+    tmp = np.reshape(tmp,(120,180))
+    cv2.imshow("w2", tmp)
+    cv2.waitKey(10)
 ### np.genfromtxt
 ### http://stackoverflow.com/questions/7497328/reading-ascii-file-in-python-numpy-array
 
