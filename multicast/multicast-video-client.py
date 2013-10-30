@@ -9,8 +9,8 @@ import numpy as np
 cv.NamedWindow("w2", cv.CV_WINDOW_AUTOSIZE)
 
 
-MCAST_GRP = '224.1.1.1'
-MCAST_PORT = 5007
+MCAST_GRP = '226.1.1.1'
+MCAST_PORT = 11001
 
 sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
 sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
