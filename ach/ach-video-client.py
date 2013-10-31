@@ -9,7 +9,7 @@ import cv2.cv as cv
 import cv2
 import numpy as np
 
-HUBO_CHAN_VIEW   = 'hubo-view'
+HUBO_CHAN_VIEW   = 'hubo-view-vid'
 
 
 # CV setup 

@@ -1,7 +1,6 @@
 #!/bin/bash
 
 # Daniel M. Lofaro (dan@danlofaro.com)
-# M.X. Grey ( mxgrey@gatech.edu )
 # Last updated: 2013-07-19
 
 export LD_LIBRARY_PATH=/usr/lib:
@@ -9,30 +8,27 @@ export LD_LIBRARY_PATH=/usr/lib:
 
 HUBO_VIEW_VID_CHAN='hubo-view-vid'
 
-
-DAEMON_DIR='/etc/hubo-ach'
+HUBO_DIR='/etc/hubo'
+HUBO_VIEW_DIR='/etc/hubo/hubo-view'
+HUBO_VIEW_CLIENT_FILE='hubo-view-client.py'
+HUBO_VIEW_SERVER_FILE='hubo-view-server.py'
 
 var=$(date)
 HUBO_NAME_TMP_DATE=$(date)
 TMP=$(echo -n "${var//[[:space:]]/}")
 HUBO_LOG_NAME=$TMP
 HUBO_LOG_FULL_NAME="$HUBO_LOG_DIR/$HUBO_LOG_NAME.log"
-DAEMON_LOG_DIR='/var/log/hubo'
-LOCK_DIR='/var/lock/hubo'
 
+FLAG_VIEW_CLIENT=1 #Default client
+FLAG_VIEW_SERVER=0
 FLAG_REMOTE=0
 FLAG_NOCONSOLE=0
 FLAG_DRC_MODE=0
-FLAG_NO_LOG_MODE=1
 FLAG_DRC_HUBO=0
 FLAG_DRC_HUBO_SIM='drc'
-FLAG_OPENHUBO_SIM='openhubo'
-FLAG_OPENHUBO=$FLAG_OPENHUBO_SIM
 
 HUBO_REMOTE_ADDRESS='0.0.0.0'
 
-#sudo echo "i $HUBO_BITRATE e" > /dev/pcan0 
-#sudo echo "i $HUBO_BITRATE e" > /dev/pcan1
 
 trim()
 {
@@ -54,69 +50,73 @@ case "$1" in
 'kill')
 	KillRemote
 ;;
-'client')
-	MakeAch
-	achd -r pull $1 $HUBO_VIEW_VID_CHAN &
-#	achd -r push $1 $HUBO_VIEW_VID_CHAN &
-;;
 *)
-	MakeAch
-	achd -r push $1 hubo-ref &
-	achd -r pull $1 hubo-state &
-	achd -r push $1 hubo-board-cmd &
-        achd -r push $1 hubo-virtual-from-sim &
-        achd -r pull $1 hubo-virtual-to-sim &
+     MakeAch
+     if [[ $FLAG_VIEW_CLIENT -eq 1 ]]
+     then
+         achd -r pull $1 $HUBO_VIEW_VID_CHAN &
+     fi
+
+     if [[ $FLAG_VIEW_SERVER -eq 1 ]]
+     then
+         achd -r push $1 $HUBO_VIEW_VID_CHAN &
+     fi
 ;;
 esac
 
 }
 
-RunHead()
+RunViewClient()
 {
-   
-   case "$2" in 
-   'kill')
-      screen -S hubohead -p 0 -X quit
-   ;;
-   'status')
-     if ! screen -list | grep -q "hubohead"; then
-        echo 'head started: FAIL'
-     else
-        echo 'head started: success'
-     fi
-   ;;
-   *)
-
-	   if [[ $FLAG_REMOTE -eq 1 ]]
-	   then
-	       echo 'Starting remote connection'
-	       Remote $HUBO_REMOTE_ADDRESS
-	   fi
-	   sudo chmod 777 /dev/ttyUSB0
-	   cd /etc/hubo-ach
-	   echo 'Starting hubo-head process...'
-	   screen -S hubohead -d -m python hubo_drc_head.py
-           sleep 5
-           if ! screen -list | grep -q "hubohead"; then
-                echo 'head started: FAIL'
-           else
-    		echo 'head started: success'
-           fi
-   ;;
-   esac
-
+#   cd /etc/hubo-ach
+   echo 'Starting hubo-view client process...'
+   screen -S huboviewclient -d -m python ach-video-client.py
+   sleep 5
+   if ! screen -list | grep -q "huboviewclient"; then
+        echo 'hubo-view client started: FAIL'
+   else
+  	echo 'hubo-view client started: success'
+   fi
 }
 
-Read()
+RunViewServer()
 {
-	case "$1" in 
-	'kill')
-		sudo kill -9 $(pidof hubo-read)
-	;;
-	*)
-       		sudo hubo-read
-	;;
-	esac
+#   cd /etc/hubo-ach
+   echo 'Starting hubo-view server process...'
+   screen -S huboviewserver -d -m python ach-video-server.py
+   sleep 5
+   if ! screen -list | grep -q "huboviewserver"; then
+        echo 'hubo-view server started: FAIL'
+   else
+  	echo 'hubo-view server started: success'
+   fi
+}
+
+RunStatus()
+{
+     if ! screen -list | grep -q "huboviewserver"; then
+        echo 'hubo-view server started: FAIL'
+     else
+        echo 'hubo-view server started: success'
+     fi
+     if ! screen -list | grep -q "huboviewclient"; then
+        echo 'hubo-view client started: FAIL'
+     else
+        echo 'hubo-view client started: success'
+     fi
+}
+
+RunView()
+{
+     if [[ $FLAG_VIEW_CLIENT -eq 1 ]]
+     then
+         RunViewClient()
+     fi
+
+     if [[ $FLAG_VIEW_SERVER -eq 1 ]]
+     then
+         RunViewServer()
+     fi
 }
 
 KillRemote()
@@ -126,637 +126,27 @@ KillRemote()
 
 KillAll()
 {
-	StopHubo $2
-	KillHubo
-	Kill
-        screen -S hubohead -p 0 -X quit
-	sudo rm $LOCK_DIR/hubo-daemon
-	sudo rm /dev/shm/achshm-hubo*
+        screen -S huboviewserver -p 0 -X quit
+        screen -S huboviewclient -p 0 -X quit
 	KillRemote
-}
-
-StopHubo()
-{
-	case "$1" in
-	'help')
-		echo
-		echo
-		echo 'This will shut down the'
-		echo 'hubo-daemon gracefully,'
-		echo 'close all ach channels, and'
-		echo 'put down the CAN devices.'
-		echo
-		echo 'This is the recommended way'
-		echo 'to close down hubo-daemon.'
-		echo
-		echo 'If this fails to turn off'
-		echo 'or unlock the daemon, try:'
-		echo '   sudo ./run.sh kill'
-		echo
-		echo
-	;;
-
-	*)
-		sudo killall -e hubo-daemon
-                sudo kill -9 $(pidof hubo-log)
-		sudo ach -U hubo-ref
-		sudo ach -U hubo-state
-		sudo ach -U hubo-board-cmd
-                sudo ach -U hubo-pwm-gains
-                sudo ach -U hubo-board-param
-        
-
-		sudo ifconfig can0 down &>/dev/null 
-		sudo ifconfig can1 down &>/dev/null
-		sudo ifconfig can2 down &>/dev/null
-		sudo ifconfig can3 down &>/dev/null
-
-	;;
-	esac
-}
-
-StartLog()
-{
-  sudo mkdir $HUBO_LOG_DIR &>/dev/null 
-  sudo chmod -R 777 $HUBO_LOG_DIR
-  echo ' '
-  echo "Log File: $HUBO_LOG_FULL_NAME"
-  echo ' '
-  cd $HUBO_LOG_DIR
-  (ls -t|head -n $HUBO_LOG_MAX;ls)|sort|uniq -u|xargs rm &>/dev/null
-  sudo hubo-log -f $HUBO_LOG_FULL_NAME
-}
-
-ClearLog()
-{
-  sudo rm -R $HUBO_LOG_DIR
-  sudo mkdir $HUBO_LOG_DIR &>/dev/null 
-  echo 'Logs Cleared'
-}
-
-
-StartHubo()
-{
-
-    SetHuboType $2
-#   case "$2" in
-#   'drc')
-#        sudo rm /etc/hubo-ach/joint.table
-#        sudo cp /etc/hubo-ach/drc-hubo.joint.table /etc/hubo-ach/joint.table
-#        sudo rm /etc/hubo-ach/sensor.table
-#        sudo cp /etc/hubo-ach/drc-hubo.sensor.table /etc/hubo-ach/sensor.table
-#        FLAG_DRC_MODE=1
-#        echo 'Loaded DRC-Hubo Joint Table'
-#    ;;
-#    *)   
-#        sudo rm /etc/hubo-ach/joint.table
-#        sudo cp /etc/hubo-ach/huboplus.joint.table /etc/hubo-ach/joint.table
-#        sudo rm /etc/hubo-ach/sensor.table
-#        sudo cp /etc/hubo-ach/huboplus.sensor.table /etc/hubo-ach/sensor.table
-#        echo 'Loaded Hubo Plus Joint Table'
-#   esac
-#
-#   sudo sync
-#   sudo sleep 1
- 
-   RunDaemon
-   if [[ $FLAG_NOCONSOLE -eq 0 ]]
-   then
-       echo 'Starting in Console Mode'
-       StartConsole
-   else
-       echo 'Starting in No Console Mode'
-   fi
-}
-
-
-SetHuboType()
-{
-   case "$1" in
-   'drc')
-        sudo rm /etc/hubo-ach/joint.table
-        sudo cp /etc/hubo-ach/drc-hubo.joint.table /etc/hubo-ach/joint.table
-        sudo rm /etc/hubo-ach/sensor.table
-        sudo cp /etc/hubo-ach/drc-hubo.sensor.table /etc/hubo-ach/sensor.table
-        FLAG_DRC_MODE=1
-        echo 'Loaded DRC-Hubo Joint Table'
-    ;;
-    *)
-        sudo rm /etc/hubo-ach/joint.table
-        sudo cp /etc/hubo-ach/huboplus.joint.table /etc/hubo-ach/joint.table
-        sudo rm /etc/hubo-ach/sensor.table
-        sudo cp /etc/hubo-ach/huboplus.sensor.table /etc/hubo-ach/sensor.table
-        echo 'Loaded Hubo Plus Joint Table'
-   esac
-
-   sudo sync
-   sudo sleep 1
-
-}
-
-
-RunDaemon()
-{
-
-	case "$2" in
-	'help')
-		echo
-		echo
-		echo 'This will switch all the CAN'
-		echo 'devices to up mode, open all'
-		echo 'ach channels, boot up the'
-		echo 'hubo-daemon, and start up'
-		echo 'the hubo-console.'
-		echo
-		echo 'You can pass in arguments to the'
-		echo 'hubo-daemon by appending them to'
-		echo 'your run.sh start command. Example:'
-		echo "   sudo ./run.sh start -v -d"
-		echo 'will run the daemon while passing'
-		echo 'in the arguments -v and -d'
-		echo
-		echo
-	;;
-
-	*)
-
-
-#		if [ $(pidof hubo-daemon) -gt 0		]
-#                then
-#	            exit 0 
-#                else
-
-			sudo echo "i $HUBO_BITRATE e" > /dev/pcan0
-			sudo echo "i $HUBO_BITRATE e" > /dev/pcan1
-	    		sudo ifconfig can0 up &>/dev/null
-			sudo ifconfig can1 up &>/dev/null
-			sudo ifconfig can2 up &>/dev/null
-			sudo ifconfig can3 up &>/dev/null
-
-#		sudo ach -1 -C hubo-ref -m 10 -n 3000
-#		sudo ach -1 -C hubo-ref-filter -m 10 -n 3000
-#		sudo ach -1 -C hubo-state -m 10 -n 3000
-#		sudo ach -1 -C hubo-init-cmd -m 10 -n 3000
-
-			MakeAch
-#		ach -1 -C hubo-ref -m 10 -n 3000
-#		ach -1 -C hubo-ref-filter -m 10 -n 3000
-#		ach -1 -C hubo-state -m 10 -n 3000
-#		ach -1 -C hubo-init-cmd -m 10 -n 3000
-                        if [[ $FLAG_NO_LOG_MODE -eq 1 ]]
-                        then
-                          echo ' '
-                          echo 'No Logging Mode'
-                          echo ' '
-                        else
-                          StartLog
-                        fi
-                         
-			DAEMON_ARGS=''
-			for IN_ARG in $@
-			do
-				if [ $IN_ARG != 'start'          ]
-				then
-					DAEMON_ARGS+=" $IN_ARG"
-				fi
-			done
-                        if [[ $FLAG_DRC_MODE -eq 1 ]]
-                        then
-                          DAEMON_ARGS+=" -drc"
-                        fi
-       	             	sudo hubo-daemon $DAEMON_ARGS 
-#                fi
-	;;
-	esac
-}
-
-StartConsole()
-{
-   hubo-console
-}
-
-MakeVCan()
-{
-                sudo rmmod vcan
-                sudo modprobe vcan
-
-                sudo ip link add type vcan
-                sudo ifconfig vcan0 up
-                sudo ip link add type vcan
-                sudo ifconfig vcan1 up
-                sudo ip link add type vcan
-                sudo ifconfig vcan2 up
-                sudo ip link add type vcan
-                sudo ifconfig vcan3 up
-}
-
-VirtualHubo()
-{
-	case "$1" in
-	'help')
-		echo
-		echo
-		echo 'This is the same as running'
-		echo '   sudo ./run.sh start -v'
-		echo 'which runs the daemon in'
-		echo 'virtual mode.'
-		echo
-		echo 'Virtual mode allows you to'
-		echo 'run the daemon without sending'
-		echo 'actual CAN commands. This way'
-		echo 'the processes can be run on a'
-		echo 'computer without a CAN card.'
-		echo
-		echo 'While running virtual mode,'
-		echo 'the computer will not'
-		echo 'communicate in any way with'
-		echo "Hubo's hardware."
-		echo
-		echo
-	;;
-
-	*)
-		MakeVCan
-		MakeAch
-		sudo hubo-daemon -v
-		sudo hubo-console
-	;;
-	esac
-}
-
-SetSim()
-{
-		MakeVCan
-		MakeAch
-		sudo hubo-daemon -o
-}
-Sim()
-{
-		SetSim
-		sudo hubo-console
-}
-
-OpenHubo()
-{
-
-	case "$3" in
-	'physics')
-		SetSim
-                HUBO_SIM_ARGS='physics '$FLAG_OPENHUBO
-	        python -i /etc/hubo-ach/virtualHubo.py $HUBO_SIM_ARGS
-		#python -i /etc/hubo-ach/virtualHubo.py physics
-	;;
-	
-	'nophysics')
-        	case "$4" in
-		'simtime')
-                        case "$5" in 
-			'remote')
-				Remote $6
-                                HUBO_SIM_ARGS='nophysics simtime '$FLAG_OPENHUBO
-				python -i /etc/hubo-ach/virtualHubo.py $HUBO_SIM_ARGS
-				#python -i /etc/hubo-ach/virtualHubo.py nophysics simtime $FLAG_OPENHUBO
-			;;
-			*)
-				SetSim
-                                HUBO_SIM_ARGS='nophysics simtime '$FLAG_OPENHUBO
-				python -i /etc/hubo-ach/virtualHubo.py $HUBO_SIM_ARGS
-				#python -i /etc/hubo-ach/virtualHubo.py nophysics simtime $FLAG_OPENHUBO
-			;;
-			esac
-		;;
-		*)
-                        case "$4" in 
-			'remote')
-				Remote $5
-                                HUBO_SIM_ARGS='nophysics '$FLAG_OPENHUBO
-				python -i /etc/hubo-ach/virtualHubo.py $HUBO_SIM_ARGS
-				#python -i /etc/hubo-ach/virtualHubo.py nophysics $FLAG_OPENHUBO
-			;;
-			*)
-				RunDaemon
-                                HUBO_SIM_ARGS='nophysics '$FLAG_OPENHUBO
-				python -i /etc/hubo-ach/virtualHubo.py $HUBO_SIM_ARGS
-				#python -i /etc/hubo-ach/virtualHubo.py nophysics $FLAG_OPENHUBO
-			;;
-			esac
-		;;
-		esac
-	;;
-	*) 
-		echo 'No Physics mode chosen'
-	;;
-	esac
-}
-
-DebugHubo()
-{
-	case "$1" in
-	'help')
-		echo
-		echo
-		echo 'This is the same as running'
-		echo '   sudo ./run.sh start -d'
-		echo 'which runs the daemon in'
-		echo 'debug mode.'
-		echo
-		echo 'This mode produces a lot of'
-		echo 'output which can flood memory'
-		echo 'space. You should only run this'
-		echo 'mode when investigating problems'
-		echo 'and do not leave it running for'
-		echo 'more than a short time.'
-		echo
-		echo
-	;;
-
-	*)
-
-		sudo ifconfig can0 up
-		sudo ifconfig can1 up
-		sudo ifconfig can2 up
-		sudo ifconfig can3 up
-
-
-		MakeAch
-
-#		sudo ach -1 -C hubo-ref -m 10 -n 3000
-#		sudo ach -1 -C hubo-state -m 10 -n 3000
-#		sudo ach -1 -C hubo-init-cmd -m 10 -n 3000
-
-		sudo hubo-daemon -d $1
-		sleep 1
-		sudo hubo-console
-	;;
-	esac
-}
-
-KillHubo()
-{
-	case "$1" in
-	'help')
-		echo
-		echo
-		echo 'This forces the daemon to turn off'
-		echo 'with no regard for safety or grace.'
-		echo 'This should only be used if'
-		echo '   sudo ./run.sh stop'
-		echo 'is not working for some reason.'
-		echo
-		echo 'You can also use this to unlock'
-		echo 'hubo-daemon if it is considered to'
-		echo 'be locked when it should not be.'
-		echo '(i.e. if a new instance of'
-		echo ' hubo-daemon refuses to turn on'
-		echo ' even though it should)'
-		echo
-		echo
-
-	;;
-
-	*)
-		# This forcibly interrupts all hubo-daemon processes
-		sudo killall -e -s SIGKILL hubo-daemon
-
-		# This forcibly unlocks hubo-daemon
-		sudo rm /var/lock/hubo/hubo-daemon
-	;;
-	esac
-}
-
-LogHubo()
-{
-
-
-	case "$1" in
-	'help')
-		echo
-		echo
-		echo 'This prints out all recent Hubo logs.'
-		echo
-		echo 'The logs are split into three parts:'
-		echo '1) The system log'
-		echo '   This deals with the daemonization'
-		echo '   and other process management'
-		echo '   procedures.'
-		echo '2) The standard output'
-		echo '   These are operational messages.'
-		echo '   Anything in hubo-daemon which is'
-		echo '   sent to stdout is redirected here.'
-		echo '3) The error output'
-		echo '   These are error-related messages.'
-		echo '   Anything in hubo-daemon which is'
-		echo '   sent to stderr is redirected here.'
-		echo
-		echo
-	;;
-
-	*)
-		echo
-		echo "System Log:"
-		tail /var/log/syslog | grep hubo-daemon
-		echo "_______________________________"
-		echo
-		echo "Hubo Output:"
-		cat $DAEMON_LOG_DIR/daemon-output
-		echo "_______________________________"
-		echo
-		echo "Hubo Errors:"
-		cat $DAEMON_LOG_DIR/daemon-error
-		echo
-	;;
-	esac
-}
-
-SaveLog()
-{
-	case "$1" in
-	'help')
-		echo
-		echo
-		echo 'Type the following into the terminal:'
-		echo '   sudo ./run.sh savelog filename.log'
-		echo 'in order to save the latest logs into'
-		echo 'the file filename.log'
-		echo
-		echo 'Note that this will overwrite anything'
-		echo 'currently contained in filename.log'
-		echo
-		echo 'If you do not specify a filename, the'
-		echo 'logs will automatically go to saved.log'
-		echo
-		echo
-	;;
-
-	'')
-		echo "System Log:" > saved.log
-		tail /var/log/syslog | grep hubo-daemon >> saved.log
-		echo "_______________________________" >> saved.log
-		echo >> saved.log
-		echo "Hubo Output:" >> saved.log
-		cat $DAEMON_LOG_DIR/daemon-output >> saved.log
-		echo "_______________________________" >> saved.log
-		echo >> saved.log
-		echo "Hubo Errors:" >> saved.log
-		cat $DAEMON_LOG_DIR/daemon-error >> saved.log
-	;;
-
-	*)
-		echo "System Log:" > $1
-		tail /var/log/syslog | grep hubo-daemon >> $1
-		echo "_______________________________" >> $1
-		echo >> $1
-		echo "Hubo Output:" >> $1
-		cat $DAEMON_LOG_DIR/daemon-output >> $1
-		echo "_______________________________" >> $1
-		echo >> $1
-		echo "Hubo Errors:" >> $1
-		cat $DAEMON_LOG_DIR/daemon-error >> $1
-	;;
-	esac
-}
-
-# Config file installation should be handled by `make install` or
-# package manager -ntd
-
-# ConfigHubo()
-# {
-#	case "$1" in
-#	'help')
-#		echo
-#		echo
-#		echo 'This is a first-time setup script'
-#		echo 'which creates some directories and'
-#		echo 'default files which are needed for'
-#		echo 'the hubo-daemon and other tools.'
-#		echo
-#		echo 'This only needs to be run once'
-#		echo 'ever on your computer.'
-#		echo
-#		echo
-#	;;
-
-#	*)
-#		sudo mkdir $DAEMON_DIR
-#		sudo cp joint.table $DAEMON_DIR/joint.table
-#		sudo cp joint.table $DAEMON_DIR/default-joint.table
-#		sudo chmod a-w $DAEMON_DIR/default-joint.table
-#	;;
-#	esac
-# }
-
-ParamHubo()
-{
-	case "$1" in
-	'help')
-		echo
-		echo
-		echo 'Type the following into the terminal:'
-		echo '   sudo ./run.sh filename.table'
-		echo 'to use the values given in filename.table'
-		echo "as Hubo's joint motor controller"
-		echo 'parameters.'
-		echo
-		echo 'Type the following:'
-		echo '   sudo ./run.sh default'
-		echo 'to have the parameters return to their'
-		echo 'default values.'
-		echo
-		echo
-	;;
-
-	'')
-		echo
-		echo
-		echo 'You need to specify a file name!'
-		echo
-		echo
-	;;
-	*)
-		cp -f $1 $DAEMON_DIR/joint.table
-	;;
-	esac
-
-}
-
-DefaultHubo()
-{
-	case "$1" in
-	'help')
-		echo
-		echo
-		echo 'Use this to overwrite the current'
-		echo 'joint motor controller parameters'
-		echo 'with their default values.'
-		echo
-		echo 'This can be used to restore functionality'
-		echo 'if you have modified the JMC parameter'
-		echo 'file in a bad way.'
-		echo
-		echo
-	;;
-
-	*)
-		cp -f $DAEMON_DIR/default-joint.table $DAEMON_DIR/joint.table
-	;;
-	esac
-}
-
-
-PrintHuboStatus()
-{
-	echo TODO: Print out how Hubo is doing...
-}
-
-RestartHelp()
-{
-	echo
-	echo
-	echo 'This is exactly the same as running'
-	echo '   sudo ./run stop'
-	echo 'immediately followed by'
-	echo '   sudo ./run start'
-	echo
-	echo
-
-
 }
 
 Install()
 {
-case "$2" in
-        'sim-drc')
-                sudo mkdir /etc/hubo-ach/sim/
-                sudo chmod -R 777 /etc/hubo-ach/sim/
-                cd /etc/hubo-ach/sim/
-                sudo rm -r drchubo
-		git clone https://github.com/hubo/drchubo.git 
-                echo 'DRC Hubo URDF installed - must have OpenHubo Installed'
-                echo 'If not installed type $ hubo-ach install sim-openhubo'
-                echo ' '
-        ;;
-	'sim-openhubo')
-                sudo mkdir /etc/hubo-ach/sim/
-                sudo chmod -R 777 /etc/hubo-ach/sim/
-                cd /etc/hubo-ach/sim/
-                sudo rm -r openHubbo
-		git clone https://github.com/hubo/openHubo.git 
-		cd openHubo/util
-		./clean-all.sh
-		cd ..
-		./setup
-		echo 'OpenHubo Installed'
-	;;
-	'sim-all')
-		echo 'install all sim items'
-		hubo-ach install sim-openhubo
-		hubo-ach install sim-drc
-		echo 'installed all sim items'
+case "$1" in
+        'install')
+                sudo mkdir $HUBO_DIR
+		sudo mkdir $HUBO_VIEW_DIR
+                sudo chmod -R 777 $HUBO_VIEW_DIR
+                cp $HUBO_VIEW_SERVER_FILE $HUBO_VIEW_DIR
+		cp $HUBO_VIEW_CLIENT_FILE $HUBO_VIEW_DIR
+	'remove')
+		sudo rm -R $HUBO_VIEW_DIR
 	;;
         *)
                 echo 'Install Options: '
-		echo '	sim-drc		- DRC-Hubo URDF model (OpenHubo Install Required)'
-		echo '  sim-openhubo    - OpenHubo URDF and base system'
+		echo '  install         - Installs hubo-view to /etc/hubo/hubo-view/'
+		echo '  remove          - Removes hubo-view'
         ;;
         esac
 }
@@ -764,67 +154,17 @@ case "$2" in
 ShowUsage()
 {
 	echo
-	echo 'start         : Start all channels and processes and consle'
-        echo '              :Options:'
-        echo '                     (no-arg)      : loads Hubo Plus joint table'
-        echo '                     drc           : loads drc-hubo joint table'
-	echo 'daemon        : Same as "start" but does not run hubo-ach console'
-	echo 'run           : Start all channels and processes and NO consle'
-	echo 'stop          : Close all channels and processes'
-	echo 'restart       : Restart all channels and processes'
-        echo 'console       : Starts the hubo conole'
-        echo 'head          : Hubo head/neck process'
+	echo '---- Hubo-View arg list ----'
+	echo 'client        : starts client (reads from server)'
+	echo 'server        : starts server' 
+        echo 'remote        : Starts a remote connection to xxx.xxx.xxx.xxx via achd'
+	echo '              : can put at end of any other command. '
+	echo '              : if client will pull (default) to IP, if server will push'
         echo '              : Options:'
-        echo '              :       (no-arg)      : Start hubo head/neck process'
-        echo '              :       kill          : Stops hubo head/neck process'
-        echo '              :       status        : Get status of hubo head/neck process'
-        echo '              :       arg remote xxx.xxx.xxxx : starts head/neck process with remote'
-        echo '              :                                 connection to xxx.xxx.xxx.xxx'
-	echo 'load          : Loads pre defigned home paramaters for the hubos'
-	echo '              : Options:'
-   	echo '              :       beta1         : Loads default home pos for DRC-Hubo-Beta-1'
-   	echo '              :       beta2         : Loads default home pos for DRC-Hubo-Beta-2'
-   	echo '              :       rainbow2      : Loads default RAINBOW home pos for DRC-Hubo-Beta-2'
-        echo 'read          : Starts the hubo read application to read state data'
-        echo 'make          : makes all the hubo channels'
-	echo 'kill          : Emergency kill the daemon process'
-	echo 'killprocess   : Kill all processes starting with hubo'
-	echo 'killall       : Killprocess and rm all achshm-hubo ACH channels'
-	echo "log           : Print out Hubo's latest log"
-	echo 'savelog       : Save latest log to specified file'
-	echo "param         : Sets Hubo's params from given file"
-	echo "default       : Sets Hubo's params to default values"
-	echo 'debug         : Run the daemon in debug mode'
-	echo 'virtual       : Run the daemon without using CAN'
-	echo 'sim           : Run usng non-real-time triggered mode'
-	echo '              : Options:'
-	echo '              :    (no-arg)       : start simtime triggered mode'
-	echo '              :    openhubo       : Uses Open Hubo Simulator'
-	echo '              :         Options:'
-	echo '              :             physics    : Runs with Dynamics (SimTime triggered Mode)'
-	echo '              :             nophysics  : Runs with No Dynamics'
-	echo '              :                  Options: '
-	echo '              :                        (no-arg)  : run in RT (free run) mode'
-	echo '              :                             remote xxx.xxx.xxx.xxx  : same as remote command'
-	echo '              :                        simtime   : Run in simtime triggered mode'
-	echo '              :                             remote xxx.xxx.xxx.xxx  : same as remote command'
-	echo 'remote        : Starts a remote connection to xxx.xxx.xxx.xxx via achd'
-	echo 'killremote    : kills the remote connection'
-	echo 'install       : Installs different packages including simulators'
-	echo '		    : Options:'
-	echo '              :     (no-arg)       : shows package list'
-	echo '              :     PackageName    : Installs package with PackageName'
-	echo '              :       sim-openhubo : openhubo base system'
-        echo '              :       sim-drc      : drc hubo model (requires openhubo)'
-        echo '              :       sim-all      : install all above packages'
-	echo 'clean         : cleans and removes installed hubo-ach (source and apt-get)'
-        echo 'update        : cleans, removes, then updates hubo-ach'
-	echo 'config        : Do a first-time setup'
-        echo 'takelog       : enables hubo-ach logging'
-        echo 'clearlog      : deletes old log files'
-	echo
-	echo 'Type help after any of the above commands for'
-	echo '   a more detailed description'
+        echo '                     xxx.xxx.xxx.xxx      : sets connection to IP xxx.xxx.xxx.xxx'
+        echo '                     kill                 : kills remote connections'
+        echo 'install       : Installs hubo-view to /etc/hubo/hubo-view'
+	echo 'remove        : Removes hubo-view'
 	echo
 }
 
@@ -838,18 +178,18 @@ for var in "$@"
 do
 #    echo "$var"
     case "$var" in
-      'takelog' )
-          FLAG_NO_LOG_MODE=0
+      'server' )
+          FLAG_VIEW_SERVER=1
+          FLAG_VIEW_CLIENT=0
+      ;;
+      'client' )
+          FLAG_VIEW_SERVER=0
+          FLAG_VIEW_CLIENT=1
       ;;
       'remote' )
 	  FLAG_REMOTE=1
           HUBO_REMOTE_ADDRESS=${HUBO_TEMP[$(($HUBO_I+1))]}
 	  echo "Remote address set: "$HUBO_REMOTE_ADDRESS
-      ;;
-      'drc' )
-          FLAG_DRC_HUBO=1
-          FLAG_OPENHUBO=$FLAG_DRC_HUBO_SIM
-          SetHuboType $var
       ;;
     esac
     HUBO_I=$(($HUBO_I+1))
@@ -860,168 +200,34 @@ done
 
 
 SetFlags $@
-case "$1" in
-# Start hubo-console
-	'console' )
-		StartConsole $@
-	;;
 
-# Start all channels and processes
-	'make' )
-		MakeAch $@
-	;;
-
-# Loads new home paramaters
-	'load' )
-		Load $@
-	;;
-
-# Start hubo-read
-	'read' )
-		Read $2
-	;;
-
-# Start all channels and processes and Console
-	'start' )
-		StartHubo $@
-	;;
-
-# runs in daemon only mode no console
-	'daemon' )
-                FLAG_NOCONSOLE=1
-		StartHubo $@
-        ;;
-
-# Start remote via achd
-	'remote' )
+## Set Remote ##
+case "$1" in 
+	'remote')
 		Remote $2
 	;;
-
-# Kills remote connection
-	'killremote' )
-		KillRemote
+	*)
+	   if [[ $FLAG_REMOTE -eq 1 ]]
+	   then
+	       echo 'Starting remote connection'
+	       Remote $HUBO_REMOTE_ADDRESS
+	   fi
 	;;
-
-# Installs various things
-   	'install' )
-		Install $@
-	;;
-
-# Start all channels and processes
-	'run' )
-		RunDaemon $@
-	;;
-
-# Run head program
-        'head' )
-		RunHead $@
-	;;
-
-# Close all channels and processes
-	'stop' )
-		StopHubo $2
-	;;
-# Clears all logs and deletes them
-	'clearlog' )
-		ClearLog
-	;;
+esac
 
 
-# Kill all hubo processies
-	'killprocess' )
-		Kill
-	;;
 
-# Kill all hubo processies and remove ach
-	'killall' )
-		KillAll
+## Start all other parts ##
+case "$1" in
+	'client' )
+		RunView
 	;;
-# removes hubo-ach
-        'clean' )
-  		Clean
+        'server' )
+		RunView
 	;;
-# updates hubo-ach
-	'update' )
-		Update $2
-	;;
-# Close and then reopen all channels and processes
-	'restart' )
-		case "$2" in
-		'help')
-			RestartHelp
-		;;
-		*)
-			StopHubo
-			StartHubo
-		;;
-		esac
-	;;
-
-# Run the main daemon in virtual mode (does not require actual CAN communication)
-	'virtual' )
-		VirtualHubo $2
-	;;
-
-# Run OpenHubo simulator
-	'openhubo' )
-		OpenHubo $2
-	;;
-
-# Run simulator mode
-	'sim' )
-        	case "$2" in
-			'openhubo' )
-			OpenHubo $@
-		;;
-		
-		*)
-			Sim $3
-		;;
-		esac
-	;;
-
-# Emergency kill
-	'kill' )
-		KillHubo $2
-	;;
-
-# Set joint motor parameters
-	'param' )
-		ParamHubo $2
-	;;
-
-# Set joint motor parameters to default values
-	'default' )
-		DefaultHubo $2
-	;;
-
-# Print out Hubos logs
-	'log' )
-		LogHubo $2
-	;;
-
-# Save the latest log
-	'savelog' )
-		SaveLog $2
-	;;
-
-# Debug
-	'debug' )
-		DebugHubo $2
-	;;
-
-# Check the status of Hubo
 	'status' )
-		PrintHuboStatus $2
-	;;
-
-
-# Should be handled by `make install` or package manager -ntd
-# Do a first-time setup for the daemon and scripts
-	# 'config' )
-	#         ConfigHubo $2
-	# ;;
-
+                RunStatus
+ 	;;
 	*)
 		ShowUsage
 		exit 1
