@@ -101,12 +101,12 @@ RunViewClient()
 #   screen -S huboviewclient -d -m python $HUBO_VIEW_CLIENT_DIR
 #   python $HUBO_VIEW_CLIENT_DIR
    python $HUBO_VIEW_DIR/$HUBO_VIEW_CLIENT_FILE
-   sleep 5
-   if ! screen -list | grep -q "huboviewclient"; then
-        echo 'hubo-view client started: FAIL'
-   else
-  	echo 'hubo-view client started: success'
-   fi
+#   sleep 5
+#   if ! screen -list | grep -q "huboviewclient"; then
+#        echo 'hubo-view client started: FAIL'
+#   else
+#  	echo 'hubo-view client started: success'
+#   fi
 }
 
 RunViewServer()
