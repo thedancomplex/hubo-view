@@ -27,7 +27,6 @@
 # ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 # */
 # Daniel M. Lofaro (dan@danlofaro.com)
-# Last updated: 2013-07-19
 
 export LD_LIBRARY_PATH=/usr/lib:
 
