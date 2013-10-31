@@ -110,12 +110,12 @@ RunView()
 {
      if [[ $FLAG_VIEW_CLIENT -eq 1 ]]
      then
-         RunViewClient()
+         RunViewClient
      fi
 
      if [[ $FLAG_VIEW_SERVER -eq 1 ]]
      then
-         RunViewServer()
+         RunViewServer
      fi
 }
 
@@ -140,8 +140,13 @@ case "$1" in
                 sudo chmod -R 777 $HUBO_VIEW_DIR
                 cp $HUBO_VIEW_SERVER_FILE $HUBO_VIEW_DIR
 		cp $HUBO_VIEW_CLIENT_FILE $HUBO_VIEW_DIR
+                cp hubo-view $HUBO_VIEW_DIR
+                HUBO_VIEW_BIN="$HUBO_VIEW_DIR/hubo-view"
+                sudo ln -s $HUBO_VIEW_BIN /usr/bin/hubo-view
+	;;
 	'remove')
 		sudo rm -R $HUBO_VIEW_DIR
+		sudo rm /usr/bin/hubo-view
 	;;
         *)
                 echo 'Install Options: '
@@ -228,6 +233,12 @@ case "$1" in
 	'status' )
                 RunStatus
  	;;
+        'install' )
+		Install $1
+	;;
+	'remove' )
+		Install $1
+	;;
 	*)
 		ShowUsage
 		exit 1
