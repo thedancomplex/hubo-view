@@ -31,7 +31,6 @@
 
 export LD_LIBRARY_PATH=/usr/lib:
 
-
 HUBO_VIEW_VID_CHAN='hubo-view-vid'
 
 HUBO_DIR='/etc/hubo'
