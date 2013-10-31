@@ -50,6 +50,8 @@ cv.NamedWindow("w2", cv.CV_WINDOW_AUTOSIZE)
 newx = 180
 newy = 120
 
+nx = 640
+ny = 480
 
 v = ach.Channel(HUBO_CHAN_VIEW)
 v.flush()
@@ -68,7 +70,8 @@ while True:
 
     [status, framesize] = v.get(vid, wait=True, last=False)
     if status == ach.ACH_OK or status == ach.ACH_MISSED_FRAME:
-        cv2.imshow("w2", vid)
+        vid2 = cv2.resize(vid,(nx,ny))
+        cv2.imshow("w2", vid2)
         cv2.waitKey(10)
     else:
         raise ach.AchException( v.result_string(status) )
