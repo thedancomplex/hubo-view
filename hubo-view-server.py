@@ -26,6 +26,7 @@ newy = 120
 v = ach.Channel(HUBO_CHAN_VIEW)
 v.flush()
 i=0
+print "starting hubo-view"
 while True:
     # Get Frame
     f, img = capture.read()
